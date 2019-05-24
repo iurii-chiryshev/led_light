@@ -31,18 +31,23 @@ void k_means(const Mat& src,Mat &dst, Mat &labels,int k=3){
     for(int i=0; i<src.cols*src.rows; i++) {
         data.at<float>(i,0) = (float)src.data[i];
     }
-    Mat bestLabels, clustered = Mat(src.rows, src.cols, CV_32F);
+    Mat bestLabels,centers,clustered = Mat(src.rows, src.cols, CV_32F);
     //
     cv::kmeans(data, k, bestLabels,
             TermCriteria( CV_TERMCRIT_EPS+CV_TERMCRIT_ITER, 10, 1),
-            3, KMEANS_PP_CENTERS,labels);
+            3, KMEANS_PP_CENTERS,centers);
     for(int i=0; i<src.cols*src.rows; i++) {
-        clustered.at<float>(i/src.cols, i%src.cols) = labels.at<float>(bestLabels.at<int>(i,0),0);
+        clustered.at<float>(i/src.cols, i%src.cols) = centers.at<float>(bestLabels.at<int>(i,0),0);
     }
     clustered.convertTo(dst, CV_8U);
-    labels.convertTo(labels, CV_8U);
+    centers.convertTo(labels, CV_8U);
 }
 
+/**
+ * @brief connected_components
+ * @param src
+ * @param blobs
+ */
 void connected_components(const Mat & src,vector<Blob> &blobs){
     blobs.clear();
 //    Mat mask;
@@ -52,7 +57,7 @@ void connected_components(const Mat & src,vector<Blob> &blobs){
     Mat labels;
     ccl::connectedComponents(src,labels,blobs_ptr,8,CCL_SAUF,50);
     for(int i = 0; i < blobs_ptr.size(); i++){
-        if (blobs_ptr[i] == NULL) continue;
+        if (blobs_ptr[i] == NULL) continue; // todo check NULL
         const ccl::Blob &b = *blobs_ptr[i];
         blobs.push_back(b);
     }
@@ -62,12 +67,12 @@ void connected_components(const Mat & src,vector<Blob> &blobs){
 
 int main(int argc, char *argv[])
 {
-    const string path = "D://images//good_4.png";
+    const string path = "D://images//good_2.png";
     // картинку
     Mat img = cv::imread(path,IMREAD_GRAYSCALE);
     cv::imshow("original",img);
     Mat k_mean, labels;
-    const int num_cluster = 5; // количество кластеров (цветов) на которое квантуем картику
+    const int num_cluster = 6; // количество кластеров (цветов) на которое квантуем картику
     // кластеризация картинки
     k_means(img,k_mean,labels,num_cluster);
     cv::imshow("k_mean",k_mean);
@@ -94,13 +99,15 @@ int main(int argc, char *argv[])
     Mat bbox;
     led.convertTo(bbox,CV_8UC3);
     cv::cvtColor(img, bbox, CV_GRAY2BGR);
-
+    cv::Point centre(img.cols / 2, img.rows / 2);
     for(int i = 0; i < blobs.size();i++){
         cv::Scalar color(0,255,0);
         // bbox
         cv::rectangle(bbox,blobs[i].rect,color,2);
         // centroid
         cv::circle(bbox,blobs[i].centroid,2,color,2);
+        // line to centre
+        cv::line(bbox,blobs[i].centroid,centre,color,2);
     }
     cv::imshow("bbox",bbox);
 
