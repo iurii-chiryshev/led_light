@@ -12,6 +12,7 @@
 #include <opencv2/ml/ml.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <ccl.h>
+#include <opencv2/contrib/contrib.hpp>
 
 using namespace std;
 using namespace cv;
@@ -110,6 +111,20 @@ int main(int argc, char *argv[])
         cv::line(bbox,blobs[i].centroid,centre,color,2);
     }
     cv::imshow("bbox",bbox);
+
+//    Mat logPolar;
+//    cvLogPolar( img, logPolar, cvPoint2D32f(img.cols/2,img.rows/2), 40,
+//            CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS );
+
+    LogPolar_Interp logPolar(img.rows, img.cols, cv::Point(img.cols/2,img.rows/2),100);
+    Mat lp = logPolar.to_cortical(img);
+    cv::imshow("log-polar",lp);
+    Mat lp_kmeans, lp_labels;
+    k_means(lp,lp_kmeans,lp_labels,num_cluster);
+    cv::imshow("k-means log-polar",lp_kmeans);
+
+
+
 
 
 
