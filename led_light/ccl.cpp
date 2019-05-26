@@ -201,7 +201,23 @@ namespace ccl{
 		{
 			ccl_sauf(src_img,dst_labels,blobs,connectivity,minarea,maxarea);
 		}
-	}
+    }
+
+    void connected_components(const Mat &src, vector<Blob> &blobs){
+        blobs.clear();
+        //    Mat mask;
+        //    cv::dilate(src, mask, cv::Mat());
+        //    cv::erode(mask, mask, cv::Mat());
+        ccl::Blobs blobs_ptr;
+        Mat labels;
+        ccl::connectedComponents(src,labels,blobs_ptr,8,CCL_SAUF,50);
+        for(int i = 0; i < blobs_ptr.size(); i++){
+            if (blobs_ptr[i] == NULL) continue; // todo check NULL
+            const ccl::Blob &b = *blobs_ptr[i];
+            blobs.push_back(b);
+        }
+        ccl::freeBlobs(blobs_ptr);
+    }
 
 
 

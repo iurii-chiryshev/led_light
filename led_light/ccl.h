@@ -83,21 +83,20 @@ void freeBlobs(Blobs& blobs);
 /*                       маркировка связных компонент                   */
 /************************************************************************/
 
-//************************************
-// Method:    connectedComponents
-// FullName:  ccl::connectedComponents
-// Access:    public 
-// Returns:   void OPENCV_CCL_API
-// Qualifier:
-// Parameter: InputOutputArray src_img - входной массив, будет испорчен если установлены minarea, maxarea [uchar]
-// Parameter: OutputArray dst_labels - выходной массив меток [int]
-// Parameter: Blobs & blobs - блобы, структуры данных с информацией об областях
-// Parameter: int connectivity - связность 4 или 8
-// Parameter: int algorithm - какой алгоритм
-// Parameter: int minarea - минимально допустимая площадь региона
-// Parameter: int maxarea - максимально допустимая площадь региона
-//************************************
+
+/**
+ * @brief connectedComponents
+ * @param src_img
+ * @param dst_labels - выходной массив меток [int]
+ * @param blobs - блобы
+ * @param connectivity - связность 4 или 8
+ * @param algorithm - какой алгоритм
+ * @param minarea - минимально допустимая площадь региона
+ * @param maxarea - максимально допустимая площадь региона
+ */
 void connectedComponents(InputOutputArray src_img,OutputArray dst_labels, Blobs& blobs,int connectivity = 4,int algorithm = CCL_FLOODFILL, int minarea = 0, int maxarea = INT_MAX);
+
+void connected_components(const Mat & src,vector<Blob> &blobs);
 
 }
 

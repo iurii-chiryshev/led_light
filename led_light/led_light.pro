@@ -40,8 +40,10 @@ win32:contains(HOST_NAME,DESKTOP-QRN46PP|DESKTOP-48BO0EE) {
 SOURCES += main.cpp \
     blob.cpp \
     ccl.cpp \
-    ccl_sauf.cpp
+    ccl_sauf.cpp \
+    led.cpp
 
 HEADERS += \
     ccl.h \
-    ccl_sauf.h
+    ccl_sauf.h \
+    led.h
