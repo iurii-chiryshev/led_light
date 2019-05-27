@@ -30,7 +30,7 @@ class LedDetector
 public:
     LedDetector(int lpSize = 120, // размер log polar картинки
                 int clusters=6, // количество кластеров сегментации
-                int ledClusters = 2, // количество кластеров, примерно относящихся к led
+                int ledClusters = 1, // количество кластеров, примерно относящихся к led
                 int ledCount = 4 // число led на картинке, которое хотим обнаружить
             );
     /**
@@ -51,6 +51,10 @@ public:
 
     std::vector<KeyPoint> lpKeypoints() const;
 
+    Mat lpShiftAligned() const;
+
+    Mat lpBin() const;
+
 protected:
     int _fitLpRadius(const Mat& src);
 
@@ -60,11 +64,17 @@ protected:
 
     Point2d _logPolarToCart(double ro, double phi, cv::Size cartSize, cv::Size polarSize);
 
+    void _shiftAlign(const Mat& src, Mat& dst, int shiftX, int shiftY = 0);
+
 protected:
     //log polar img
     Mat m_lp;
+    // log polar с выравниванием к одному виду по сдвигу
+    Mat m_lpShiftAligned;
     //log polar kmean img
     Mat m_lpKmean;
+    //Бинарная картинка с прожекторами
+    Mat m_lpBin;
     //
     Mat m_lpLabels;
     // предсказаный радиус на кототором лежат led в log polar координатах

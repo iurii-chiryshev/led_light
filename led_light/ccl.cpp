@@ -203,14 +203,19 @@ namespace ccl{
 		}
     }
 
-    void connected_components(const Mat &src, vector<Blob> &blobs){
+    void connected_components(const Mat &src,
+                              vector<Blob> &blobs,
+                              int connectivity = 4,
+                              int algorithm = CCL_SAUF,
+                              int minarea = 0,
+                              int maxarea = INT_MAX){
         blobs.clear();
         //    Mat mask;
         //    cv::dilate(src, mask, cv::Mat());
         //    cv::erode(mask, mask, cv::Mat());
         ccl::Blobs blobs_ptr;
         Mat labels;
-        ccl::connectedComponents(src,labels,blobs_ptr,8,CCL_SAUF,50);
+        ccl::connectedComponents(src,labels,blobs_ptr,connectivity,algorithm,minarea,maxarea);
         for(int i = 0; i < blobs_ptr.size(); i++){
             if (blobs_ptr[i] == NULL) continue; // todo check NULL
             const ccl::Blob &b = *blobs_ptr[i];

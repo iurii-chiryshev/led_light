@@ -19,26 +19,38 @@ int LedDetector::predict(const Mat &src, vector<Point> centers)
                               cv::Point(src.cols/2,src.rows/2),
                               m_lpSize,3.0,INTER_LINEAR,1, m_lpSize);
     m_lp = logPolar.to_cortical(src);
-    // кластеризуем
-
+    // кластеризуем lp
     kMeans(m_lp,m_lpKmean,m_lpLabels,m_numClusters);
+    // находимм максимум нижней проекции (линейный сдвиг по х в log polar соответствует масштабированию в cart координатах)
     m_lpRadius = _fitLpRadius(m_lp);
+    // сдвинем по х так, чтоб максимум оказался по середине картинки
+    Mat lpShiftAlign;
+    _shiftAlign(m_lp,lpShiftAlign,m_lp.cols / 2 - m_lpRadius);
+    m_lpShiftAligned = lpShiftAlign;
     // сортируем по возрастанию кластеров
     cv::sort(m_lpLabels,m_lpLabels,CV_SORT_EVERY_COLUMN | CV_SORT_ASCENDING);
-    // выбираем порог для поиска блобов
-    int blob_thresh = (int)m_lpLabels.at<uchar>(m_lpLabels.rows - 2,0);
+    // выбираем порог для поиска блобов для SimpleBlobDetector
+    int blob_thresh = (int)m_lpLabels.at<uchar>(m_lpLabels.rows - (m_ledClusters + 1),0);
     _detectLogPolarBlobs(m_lp,blob_thresh,m_lpKeypoints);
 
-    if (m_lpRadius <= 0)
-        return 0;
+    // пересчет радиуса(масштаба) из log polar в cart
     Point2d p = _logPolarToCart(m_lpRadius,0,
                                 cv::Size(src.cols,src.rows),
                                 cv::Size(m_lp.cols,m_lp.rows));
-    double cartRadius = sqrt(p.x*p.x + p.y*p.y);
-    cout << "log polar radius = " << m_lpRadius << ", cart radius = " << cartRadius << endl;
+    m_cartRadius = sqrt(p.x*p.x + p.y*p.y);
+    cout << "log polar radius = " << m_lpRadius << ", cart radius = " << m_cartRadius << endl;
 
-    m_cartRadius = cartRadius;
-    return 1;
+    //бинаризация картинки
+    // предполагаем, что:
+    // 1. самая темная метка - это фон,
+    // 2. самая светлая метка - это светодиоды
+    // 3. м/у ними - это ладонь
+    int led_thresh = (int)m_lpLabels.at<uchar>(m_lpLabels.rows - m_ledClusters,0);
+    // получаем бинарную картинку светодиодов
+    cv::threshold(m_lpKmean, m_lpBin, led_thresh - 1, 255, CV_THRESH_BINARY);
+
+    // true, если мы обнаружили как минимум 3 "хороших" пятна
+    return m_lpKeypoints.size() >= m_ledCount - 1;
 }
 
 int LedDetector::_fitLpRadius(const Mat &src)
@@ -75,7 +87,7 @@ void LedDetector::_detectLogPolarBlobs(const Mat &src, float thresh, std::vector
     params.minCircularity = 0.7;
 
     params.filterByConvexity = true;
-    params.minConvexity = 0.7;
+    params.minConvexity = 0.8;
 
     params.filterByInertia = true;
     params.minInertiaRatio = 0.01;
@@ -102,6 +114,27 @@ Point2d LedDetector::_logPolarToCart(double ro, double phi, Size cartSize, Size 
     double Krad = M_PI / 180;
     return Point2d(r * cos(angle * Krad), r * sin(angle * Krad));
 
+}
+
+void LedDetector::_shiftAlign(const Mat &src, Mat &dst, int shiftX, int shiftY)
+{
+    Mat m = Mat::zeros(2, 3, CV_32FC1);
+    m.at<float>(0,0) = 1;
+    m.at<float>(1,1) = 1;
+    m.at<float>(0,2) = shiftX;
+    m.at<float>(1,2) = shiftY;
+    cv::warpAffine(src,dst,m,Size(src.cols,src.rows),INTER_LINEAR,BORDER_REPLICATE);
+
+}
+
+Mat LedDetector::lpBin() const
+{
+    return m_lpBin;
+}
+
+Mat LedDetector::lpShiftAligned() const
+{
+    return m_lpShiftAligned;
 }
 
 std::vector<KeyPoint> LedDetector::lpKeypoints() const

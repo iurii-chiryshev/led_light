@@ -94,9 +94,20 @@ void freeBlobs(Blobs& blobs);
  * @param minarea - минимально допустимая площадь региона
  * @param maxarea - максимально допустимая площадь региона
  */
-void connectedComponents(InputOutputArray src_img,OutputArray dst_labels, Blobs& blobs,int connectivity = 4,int algorithm = CCL_FLOODFILL, int minarea = 0, int maxarea = INT_MAX);
+void connectedComponents(InputOutputArray src_img,
+                         OutputArray dst_labels,
+                         Blobs& blobs,
+                         int connectivity = 4,
+                         int algorithm = CCL_SAUF,
+                         int minarea = 0,
+                         int maxarea = INT_MAX);
 
-void connected_components(const Mat & src,vector<Blob> &blobs);
+void connectedComponents(const Mat & src,
+                         vector<Blob> &blobs,
+                         int connectivity = 4,
+                         int algorithm = CCL_SAUF,
+                         int minarea = 0,
+                         int maxarea = INT_MAX);
 
 }
 
