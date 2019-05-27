@@ -25,21 +25,23 @@ using namespace cv;
 /**
  * @brief The LedDetector class
  */
-class LedDetector
+class Led
 {
 public:
-    LedDetector(int lpSize = 120, // размер log polar картинки
+    Led(int lpSize = 120, // размер log polar картинки
                 int clusters=6, // количество кластеров сегментации
                 int ledClusters = 1, // количество кластеров, примерно относящихся к led
                 int ledCount = 4 // число led на картинке, которое хотим обнаружить
             );
+
     /**
-     * @brief predict - предсказать наличие на картинке прожекторов
-     * @param src - ихожражение
-     * @param centers - найденые центры прожекторов
-     * @return 1 - да, 0 - нет
+     * @brief operator ()
+     * @param src - входное изображение
+     * @param vec - выходной вектор признаков
      */
-    int predict(const Mat& src, vector<Point> centers);
+    void operator() (const Mat& src, Mat &vec);
+
+    static double compare(const Mat& model, Mat& target);
 
     int cartRadius() const;
 
@@ -120,6 +122,10 @@ void drawHist(const Mat & src, Mat &dst, int thickness = 1, double histPart = 0.
  * @param num_strips
  * @return
  */
-double fitFeaturesProb(const Mat & src, vector<double> &results,int num_strips = 4);
+void calculateFeatures(const Mat &src,
+                       vector<double> &results,
+                       const vector<int> &strip_counts,
+                       const vector<int> &match_methods,
+                       const vector<int> &hist_methods);
 
 

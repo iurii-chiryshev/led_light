@@ -5,13 +5,13 @@
 using namespace std;
 using namespace cv;
 
-LedDetector::LedDetector(int lpSize, int clusters, int ledClusters,int ledCount):
+Led::Led(int lpSize, int clusters, int ledClusters,int ledCount):
     m_lpSize(lpSize), m_numClusters(clusters), m_ledClusters(ledClusters), m_ledCount(ledCount)
 {
 
 }
 
-int LedDetector::predict(const Mat &src, vector<Point> centers)
+void Led::operator() (const Mat &src, Mat &vec)
 {
     _clear();
     // в log-polar координаты
@@ -27,6 +27,7 @@ int LedDetector::predict(const Mat &src, vector<Point> centers)
     Mat lpShiftAlign;
     _shiftAlign(m_lp,lpShiftAlign,m_lp.cols / 2 - m_lpRadius);
     m_lpShiftAligned = lpShiftAlign;
+    vec = lpShiftAlign;
     // сортируем по возрастанию кластеров
     cv::sort(m_lpLabels,m_lpLabels,CV_SORT_EVERY_COLUMN | CV_SORT_ASCENDING);
     // выбираем порог для поиска блобов для SimpleBlobDetector
@@ -38,7 +39,7 @@ int LedDetector::predict(const Mat &src, vector<Point> centers)
                                 cv::Size(src.cols,src.rows),
                                 cv::Size(m_lp.cols,m_lp.rows));
     m_cartRadius = sqrt(p.x*p.x + p.y*p.y);
-    cout << "log polar radius = " << m_lpRadius << ", cart radius = " << m_cartRadius << endl;
+    //cout << "log polar radius = " << m_lpRadius << ", cart radius = " << m_cartRadius << endl;
 
     //бинаризация картинки
     // предполагаем, что:
@@ -48,12 +49,17 @@ int LedDetector::predict(const Mat &src, vector<Point> centers)
     int led_thresh = (int)m_lpLabels.at<uchar>(m_lpLabels.rows - m_ledClusters,0);
     // получаем бинарную картинку светодиодов
     cv::threshold(m_lpKmean, m_lpBin, led_thresh - 1, 255, CV_THRESH_BINARY);
-
-    // true, если мы обнаружили как минимум 3 "хороших" пятна
-    return m_lpKeypoints.size() >= m_ledCount - 1;
 }
 
-int LedDetector::_fitLpRadius(const Mat &src)
+double Led::compare(const Mat &model, Mat &target)
+{
+    Mat res(1,1,CV_32FC1);
+    int method = CV_TM_CCOEFF_NORMED; // CV_TM_CCORR_NORMED
+    cv::matchTemplate(model,target,res,method);
+    return res.at<float>(0,0);
+}
+
+int Led::_fitLpRadius(const Mat &src)
 {
     Mat colSum;
     cv::reduce(src,colSum,0,CV_REDUCE_SUM,CV_32SC1);
@@ -63,12 +69,12 @@ int LedDetector::_fitLpRadius(const Mat &src)
     return maxLoc.x;
 }
 
-void LedDetector::_clear()
+void Led::_clear()
 {
     // todo
 }
 
-void LedDetector::_detectLogPolarBlobs(const Mat &src, float thresh, std::vector<KeyPoint> &keypoints)
+void Led::_detectLogPolarBlobs(const Mat &src, float thresh, std::vector<KeyPoint> &keypoints)
 {
     SimpleBlobDetector::Params params;
     params.minThreshold = thresh;
@@ -100,7 +106,7 @@ void LedDetector::_detectLogPolarBlobs(const Mat &src, float thresh, std::vector
 }
 
 
-Point2d LedDetector::_logPolarToCart(double ro, double phi, Size cartSize, Size polarSize)
+Point2d Led::_logPolarToCart(double ro, double phi, Size cartSize, Size polarSize)
 {
     //ro = polarSize.width;
     //double rectRad = min(cartSize.height / 2,cartSize.width / 2);
@@ -116,7 +122,7 @@ Point2d LedDetector::_logPolarToCart(double ro, double phi, Size cartSize, Size 
 
 }
 
-void LedDetector::_shiftAlign(const Mat &src, Mat &dst, int shiftX, int shiftY)
+void Led::_shiftAlign(const Mat &src, Mat &dst, int shiftX, int shiftY)
 {
     Mat m = Mat::zeros(2, 3, CV_32FC1);
     m.at<float>(0,0) = 1;
@@ -127,37 +133,37 @@ void LedDetector::_shiftAlign(const Mat &src, Mat &dst, int shiftX, int shiftY)
 
 }
 
-Mat LedDetector::lpBin() const
+Mat Led::lpBin() const
 {
     return m_lpBin;
 }
 
-Mat LedDetector::lpShiftAligned() const
+Mat Led::lpShiftAligned() const
 {
     return m_lpShiftAligned;
 }
 
-std::vector<KeyPoint> LedDetector::lpKeypoints() const
+std::vector<KeyPoint> Led::lpKeypoints() const
 {
     return m_lpKeypoints;
 }
 
-Mat LedDetector::lpKmean() const
+Mat Led::lpKmean() const
 {
     return m_lpKmean;
 }
 
-int LedDetector::lpRadius() const
+int Led::lpRadius() const
 {
     return m_lpRadius;
 }
 
-Mat LedDetector::lp() const
+Mat Led::lp() const
 {
     return m_lp;
 }
 
-int LedDetector::cartRadius() const
+int Led::cartRadius() const
 {
     return m_cartRadius;
 }
@@ -205,49 +211,55 @@ void drawHist(const Mat &src, Mat &dst, int thickness, double histPart){
     }
 }
 
-double fitFeaturesProb(const Mat &src, vector<double> &results, int num_strips){
+void calculateFeatures(const Mat &src,
+                       vector<double> &results,
+                       const vector<int> &strip_counts,
+                       const vector<int> &match_methods,
+                       const vector<int> &hist_methods
+                       ){
     CV_Assert(src.type() == CV_8UC1 && "src.type() == CV_8UC1"); // работаем только с серым
-    vector<Mat> strips;
-    const int strip_rows = src.rows / num_strips, strip_cols = src.cols;
-    for(int i = 0; i < num_strips; i++){
-        Rect roi(0,i*strip_rows,strip_cols,strip_rows);
-        Mat strip;
-        src(roi).convertTo(strip,src.type());
-        strips.push_back(strip);
-        imshow(std::to_string(i),strip);
-    }
-    vector<Mat> hists;
-    int histSize = 256;
-    float range[] = { 0, 256 } ;
-    const float* histRange = { range };
-    bool uniform = true; bool accumulate = false;
-    for(int i = 0; i < strips.size();i++){
-        Mat hist;
-        calcHist( &strips[i], 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate );
-        hists.push_back(hist);
-    }
-
+//    vector<int> match_methods = {
+//        CV_TM_CCORR_NORMED,
+//        CV_TM_CCOEFF_NORMED
+//    };
+//    vector<int> hist_methods = {
+//        CV_COMP_CORREL,
+//        //CV_COMP_BHATTACHARYYA,
+//    };
     results.clear();
-    vector<int> mt_methods = {
-        CV_TM_CCORR_NORMED,
-        CV_TM_CCOEFF_NORMED
-    };
-    vector<int> hist_methods = {
-        CV_COMP_CORREL,
-        //CV_COMP_BHATTACHARYYA,
-    };
-    for(int i =0; i < strips.size(); i++){
-        for(int j=i+1; j < strips.size();j++){
-            for (int k = 0; k < mt_methods.size();k++){
-                Mat res(1,1,CV_32FC1);
-                cv::matchTemplate(strips[i],strips[j],res,mt_methods[k]);
-                results.push_back(res.at<float>(0,0));
-            }
-            for (int k = 0; k < hist_methods.size();k++){
-                double diff = cv::compareHist(hists[i],hists[j],hist_methods[k]);
-                results.push_back(diff);
+    for(int s = 0; s < strip_counts.size(); s++){
+        const int num_strip = strip_counts[s];
+        const int strip_rows = src.rows / num_strip, strip_cols = src.cols;
+        vector<Mat> strips;
+        for(int i = 0; i < num_strip; i++){
+            Rect roi(0,i*strip_rows,strip_cols,strip_rows);
+            Mat strip;
+            src(roi).convertTo(strip,src.type());
+            strips.push_back(strip);
+            imshow(std::to_string(i),strip);
+        }
+        vector<Mat> hists;
+        int histSize = 256;
+        float range[] = { 0, 256 } ;
+        const float* histRange = { range };
+        bool uniform = true; bool accumulate = false;
+        for(int i = 0; i < strips.size();i++){
+            Mat hist;
+            calcHist( &strips[i], 1, 0, Mat(), hist, 1, &histSize, &histRange, uniform, accumulate );
+            hists.push_back(hist);
+        }
+        for(int i =0; i < strips.size(); i++){
+            for(int j=i+1; j < strips.size();j++){
+                for (int k = 0; k < match_methods.size();k++){
+                    Mat res(1,1,CV_32FC1);
+                    cv::matchTemplate(strips[i],strips[j],res,match_methods[k]);
+                    results.push_back(res.at<float>(0,0));
+                }
+                for (int k = 0; k < hist_methods.size();k++){
+                    double diff = cv::compareHist(hists[i],hists[j],hist_methods[k]);
+                    results.push_back(diff);
+                }
             }
         }
     }
-    return 0;
 }
