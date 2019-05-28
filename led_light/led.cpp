@@ -71,28 +71,28 @@ double Led::compare(const Mat &model, Mat &target)
         TM_CCORR_NORMED,
         TM_CCOEFF_NORMED
     };
-    int method = methods[1] ;
+    int method = methods[0] ;
     cv::matchTemplate(norm_model,norm_target,res,method);
     if (method == methods[0])
         return 1 - res.at<float>(0,0);
     return res.at<float>(0,0);
 }
 
-void Led::estimate(const Mat &src,int size, double &mean, double &std)
+void Led::estimate(const Mat &src,Mat &dst,int size, double &mean, double &std)
 {
     const vector<double> scales = {
-        0.6,
-        0.8,
+        0.5,
+        0.75,
         1.0,
-        1.2,
-        1.4
+        1.25,
+        1.5
     };
     const vector<double> gammas = {
-        0.7,
+        0.6,
         0.9,
         1.0,
-        1.2,
-        1.5
+        1.3,
+        1.9
     };
     const vector<int> flips = {-1,0,1};
 
@@ -122,19 +122,30 @@ void Led::estimate(const Mat &src,int size, double &mean, double &std)
 //                cv::imshow(name,rgb);
 //                cv::waitKey(1);
             }
+    Mat mean_led = Mat::zeros(size,size,CV_32FC1);
+    for(int i = 0; i < leds.size(); i++){
+        cv::add(leds[i],mean_led,mean_led,cv::noArray(),mean_led.type());
+    }
+    mean_led.convertTo(dst,CV_8UC1,1./leds.size());
+    Mat rgb;
+    drawHist(dst,rgb);
+    cv::imshow("mean vector",rgb);
     vector<float> dist;
     // попарное сраввнение векторов
     for(int i = 0; i < leds.size(); i++){
-        for(int j = i + 1; j < leds.size(); j++){
-            dist.push_back((float)Led::compare(leds[i],leds[j]));
-        }
+        dist.push_back(1 - Led::compare(leds[i],mean_led));
+//        for(int j = 0; j < leds.size(); j++){
+//            dist.push_back(1 - Led::compare(leds[i],leds[j]));
+//        }
     }
     // считаем mean и std
     Mat mat_dist(1,dist.size(),CV_32FC1,(void*)dist.data());
     Scalar s_mean, s_std;
     cv::meanStdDev(mat_dist,s_mean,s_std);
-    mean = s_mean[0];
-    std = s_std[0];
+    mean = 1 - s_mean[0];
+    cv::multiply(mat_dist,mat_dist,mat_dist);
+    cv::meanStdDev(mat_dist,s_mean,s_std);
+    std = sqrt(s_mean[0]);
 
 
 }

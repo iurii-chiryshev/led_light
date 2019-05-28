@@ -35,23 +35,23 @@ int main(int argc, char *argv[])
     int size = 128;
     Led target_led(size);
     // любой из "good" берем за опорный, с которым будем сравнивать
-    int target_id = 1;
+    int target_id = 2;
     string target_name = path + imgs[target_id].first;
     Mat target_gray = cv::imread(target_name,IMREAD_GRAYSCALE);
     Mat target;
     // считаем целевой вектор
     target_led(target_gray,target);
     double mean, std;
-    Led::estimate(target_gray,size,mean,std);
-    double threshold = mean - 2.5*std;
-    cout << "estimate mean = " << mean << ", std = " << std << ", threshold = " << threshold << endl;
+    Led::estimate(target_gray,target,size,mean,std);
+    double threshold = mean - 2*std;
+    cout << "estimate mean = " << mean << ", std = " << std << ", threshold(mean - 2*std) = " << threshold << endl;
 
     for (int i = 0; i < imgs.size(); i++){
         Led led(size);
         const string &name = imgs[i].first;
         string fullName = path + name;
         Mat gray = cv::imread(fullName,IMREAD_GRAYSCALE);
-        correctGamma(gray,gray,2);
+        //correctGamma(gray,gray,2);
         if(gray.empty()) continue;
         Mat model;
         led(gray,model);

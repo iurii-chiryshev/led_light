@@ -43,7 +43,7 @@ public:
 
     static double compare(const Mat& model, Mat& target);
 
-    static void estimate(const Mat& src, int size, double &mean, double &std);
+    static void estimate(const Mat& src,Mat &dst, int size, double &mean, double &std);
 
     int cartRadius() const;
 
