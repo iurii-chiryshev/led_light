@@ -43,6 +43,8 @@ public:
 
     static double compare(const Mat& model, Mat& target);
 
+    static void estimate(const Mat& src, int size, double &mean, double &std);
+
     int cartRadius() const;
 
     Mat lp() const;
@@ -58,7 +60,7 @@ public:
     Mat lpBin() const;
 
 protected:
-    int _fitLpRadius(const Mat& src);
+    int _estimateLpRadius(const Mat& src);
 
     void _clear();
 
@@ -95,6 +97,15 @@ protected:
     // какое количество "ярких" кластеров относится к led
     int m_ledClusters;
 };
+
+
+/**
+ * @brief correctGamma - гамма коррекция
+ * @param src
+ * @param dst
+ * @param gamma
+ */
+void correctGamma(const Mat& src,Mat& dst, double gamma = 2.0);
 
 
 /**

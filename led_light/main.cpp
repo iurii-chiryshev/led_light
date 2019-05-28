@@ -35,46 +35,52 @@ int main(int argc, char *argv[])
     int size = 128;
     Led target_led(size);
     // любой из "good" берем за опорный, с которым будем сравнивать
-    int target_id = 4;
+    int target_id = 1;
     string target_name = path + imgs[target_id].first;
     Mat target_gray = cv::imread(target_name,IMREAD_GRAYSCALE);
     Mat target;
     // считаем целевой вектор
     target_led(target_gray,target);
+    double mean, std;
+    Led::estimate(target_gray,size,mean,std);
+    double threshold = mean - 2.5*std;
+    cout << "estimate mean = " << mean << ", std = " << std << ", threshold = " << threshold << endl;
 
     for (int i = 0; i < imgs.size(); i++){
         Led led(size);
         const string &name = imgs[i].first;
         string fullName = path + name;
         Mat gray = cv::imread(fullName,IMREAD_GRAYSCALE);
+        correctGamma(gray,gray,2);
         if(gray.empty()) continue;
         Mat model;
         led(gray,model);
-        double result = Led::compare(model,target);
-        cout << name << " compare result = " << result << endl;
+        double received = Led::compare(model,target);
+        cout << name << " compare result = " << received << endl;
+        cout << name << " expected: " <<  imgs[i].second << ", receive: " << (received >= threshold) <<endl;
 
 
 
         // рисуем картинки
 
-        // original
-        Mat rgb;
-        drawHist(gray,rgb);
-        cv::imshow(name,rgb);
-        // log polar
-        Mat lp;
-        drawHist(led.lp(),lp);
-        int lpRad = led.lpRadius(); // log polar
-        cv::line(lp,Point(lpRad,0),Point(lpRad,lp.rows),cv::Scalar(255,0,0));
-        drawKeypoints( lp, led.lpKeypoints(), lp,
-                       Scalar(255,0,0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
-        cv::imshow(name + " lp",lp);
+//        // original
+//        Mat rgb;
+//        drawHist(gray,rgb);
+//        cv::imshow(name,rgb);
+//        // log polar
+//        Mat lp;
+//        drawHist(led.lp(),lp);
+//        int lpRad = led.lpRadius(); // log polar
+//        cv::line(lp,Point(lpRad,0),Point(lpRad,lp.rows),cv::Scalar(255,0,0));
+//        drawKeypoints( lp, led.lpKeypoints(), lp,
+//                       Scalar(255,0,0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
+//        cv::imshow(name + " lp",lp);
         // binary lp
         cv::imshow(name + " lp bin",led.lpBin());
-        // выравненный log polar
-        Mat lpShift;
-        drawHist(led.lpShiftAligned(),lpShift);
-        cv::imshow(name + " lp shift",lpShift);
+//        //выравненный log polar
+//        Mat lpShift;
+//        drawHist(led.lpShiftAligned(),lpShift);
+//        cv::imshow(name + " lp shift",lpShift);
         // kmean log polar
         Mat lpKmean;
         drawHist(led.lpKmean(),lpKmean);

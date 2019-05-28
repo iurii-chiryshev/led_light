@@ -22,7 +22,7 @@ void Led::operator() (const Mat &src, Mat &vec)
     // кластеризуем lp
     kMeans(m_lp,m_lpKmean,m_lpLabels,m_numClusters);
     // находимм максимум нижней проекции (линейный сдвиг по х в log polar соответствует масштабированию в cart координатах)
-    m_lpRadius = _fitLpRadius(m_lp);
+    m_lpRadius = _estimateLpRadius(m_lp);
     // сдвинем по х так, чтоб максимум оказался по середине картинки
     Mat lpShiftAlign;
     _shiftAlign(m_lp,lpShiftAlign,m_lp.cols / 2 - m_lpRadius);
@@ -51,15 +51,95 @@ void Led::operator() (const Mat &src, Mat &vec)
     cv::threshold(m_lpKmean, m_lpBin, led_thresh - 1, 255, CV_THRESH_BINARY);
 }
 
+static void _norm(const Mat &src, Mat &dst) {
+    // out = (in - mean) / std
+    Scalar mean,std;
+    cv::meanStdDev(src,mean,std);
+    src.convertTo(dst,CV_32FC1,1,-mean[0]);
+    dst.convertTo(dst,CV_32FC1,1 / std[0],0);
+}
+
 double Led::compare(const Mat &model, Mat &target)
 {
+    Mat norm_model, norm_target;
+    // устраняем влияние освещенности
+    _norm(model,norm_model);
+    _norm(target,norm_target);
     Mat res(1,1,CV_32FC1);
-    int method = CV_TM_CCOEFF_NORMED; // CV_TM_CCORR_NORMED
-    cv::matchTemplate(model,target,res,method);
+    const vector<int> methods = {
+        TM_SQDIFF_NORMED,
+        TM_CCORR_NORMED,
+        TM_CCOEFF_NORMED
+    };
+    int method = methods[1] ;
+    cv::matchTemplate(norm_model,norm_target,res,method);
+    if (method == methods[0])
+        return 1 - res.at<float>(0,0);
     return res.at<float>(0,0);
 }
 
-int Led::_fitLpRadius(const Mat &src)
+void Led::estimate(const Mat &src,int size, double &mean, double &std)
+{
+    const vector<double> scales = {
+        0.6,
+        0.8,
+        1.0,
+        1.2,
+        1.4
+    };
+    const vector<double> gammas = {
+        0.7,
+        0.9,
+        1.0,
+        1.2,
+        1.5
+    };
+    const vector<int> flips = {-1,0,1};
+
+    vector<Mat> leds;
+    for(int s = 0; s < scales.size(); s++)
+        for(int g = 0; g < gammas.size(); g++)
+            for(int f = 0; f < flips.size(); f++){
+                string name = std::to_string(s) + std::to_string(g) + std::to_string(f);
+                // гамма коррекция
+                Mat gamma;
+                correctGamma(src,gamma,gammas[g]);
+                // flip
+                Mat flip;
+                cv::flip(gamma,flip,flips[f]);
+                // масштаб
+                Mat scale,m = getRotationMatrix2D(Point2f(src.cols / 2,src.rows / 2), 0, scales[s]);
+                cv::warpAffine(flip,scale,m,Size(flip.cols,flip.rows),INTER_LINEAR,BORDER_REPLICATE);
+
+                Mat vec;
+                Led led(size);
+                led(scale,vec);
+                leds.push_back(vec);
+
+                // рисуем
+//                Mat rgb;
+//                drawHist(led.lpShiftAligned(),rgb);
+//                cv::imshow(name,rgb);
+//                cv::waitKey(1);
+            }
+    vector<float> dist;
+    // попарное сраввнение векторов
+    for(int i = 0; i < leds.size(); i++){
+        for(int j = i + 1; j < leds.size(); j++){
+            dist.push_back((float)Led::compare(leds[i],leds[j]));
+        }
+    }
+    // считаем mean и std
+    Mat mat_dist(1,dist.size(),CV_32FC1,(void*)dist.data());
+    Scalar s_mean, s_std;
+    cv::meanStdDev(mat_dist,s_mean,s_std);
+    mean = s_mean[0];
+    std = s_std[0];
+
+
+}
+
+int Led::_estimateLpRadius(const Mat &src)
 {
     Mat colSum;
     cv::reduce(src,colSum,0,CV_REDUCE_SUM,CV_32SC1);
@@ -262,4 +342,18 @@ void calculateFeatures(const Mat &src,
             }
         }
     }
+}
+
+void correctGamma(const Mat &src, Mat &dst, double gamma)
+{
+    CV_Assert(src.depth() == CV_8U);
+    double power = 1.0 / gamma;
+
+    Mat lut(1, 256, CV_8UC1 );
+    uchar * ptr = lut.ptr();
+    for( int i = 0; i < 256; i++ )
+    {
+        ptr[i] = saturate_cast<uchar>( pow( i / 255.0, power ) * 255.0 );
+    }
+    cv::LUT( src, lut, dst);
 }
