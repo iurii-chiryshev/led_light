@@ -23,13 +23,13 @@ using namespace ccl;
 int main(int argc, char *argv[]){
     const string path = "D://images//";
     vector<pair<string,bool>> imgs = {
-        {"good_0.png",true},
-        {"good_1.png",true},
+//        {"good_0.png",true},
+//        {"good_1.png",true},
         {"good_2.png",true},
-        {"good_3.png",true},
-        {"good_4.png",true},
-        {"good_5.png",true},
-        {"bad.png",false},
+//        {"good_3.png",true},
+//        {"good_4.png",true},
+//        {"good_5.png",true},
+//        {"bad.png",false},
     };
 
     for (int i = 0; i < imgs.size(); i++){

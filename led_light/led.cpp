@@ -369,13 +369,93 @@ void correctGamma(const Mat &src, Mat &dst, double gamma)
     cv::LUT( src, lut, dst);
 }
 
+
+static int _getGaussKsize(double sigma){
+    int ksize = ((sigma - 0.8) / 0.3 + 1)*2;
+    if (ksize % 2 == 0) ksize++;
+    return ksize;
+}
+
+static cv::Mat _getGaussianKernel(double sigmaX, double sigmaY,int ktype = CV_64F)
+{
+    int ksizeX = _getGaussKsize(sigmaX);
+    int ksizeY = _getGaussKsize(sigmaY);
+    cv::Mat gaussX = cv::getGaussianKernel(ksizeX, sigmaX, ktype);
+    cv::Mat gaussY = cv::getGaussianKernel(ksizeY, sigmaY, ktype);
+    cv::Mat k = gaussX * gaussY.t();
+    cv::Scalar sum = cv::sum(k);
+    return k;
+
+}
+
+static void _DoG(const Mat& src, Mat& dst,double sigmaX,double sigmaY){
+    //CV_Assert(src.type() == CV_32FC1 && "src.type() == CV_32FC1");
+    double delta = 5e-6;
+    Mat k1 = _getGaussianKernel(sigmaX+delta,sigmaY+delta);
+    Mat k2 = _getGaussianKernel(sigmaX,sigmaY);
+    Mat dog = k1 - k2;
+    double minVal,maxVal;
+    dog.convertTo(dog,dog.type(),-sigmaX*sigmaY / delta);
+    cv::filter2D(src,dst,-1,dog);
+    cv::minMaxLoc(dst,&minVal,&maxVal);
+    cout << "maxVal = " << maxVal / sqrt(sigmaX*sigmaY) << endl;
+    dst.convertTo(dst,dst.type(),1./(maxVal-minVal),-minVal/(maxVal-minVal));
+    dst.convertTo(dst,dst.type(),255);
+    cv::minMaxLoc(dst,&minVal,&maxVal);
+    return;
+}
+
+static void _nonMaximaSuppression(const cv::Mat& src, cv::Mat& dst, bool removePlateaus = false) {
+    cv::dilate(src, dst, cv::Mat());
+    //cv::imshow("mask1",dst);
+    cv::compare(src,dst,dst, cv::CMP_GE);
+
+    // удираем плато -> морф. оконтуривание
+    if (removePlateaus) {
+        cv::Mat non_plateau_mask;
+        cv::erode(src, non_plateau_mask, cv::Mat());
+        cv::compare(src, non_plateau_mask, non_plateau_mask, cv::CMP_GT);
+        cv::bitwise_and(dst, non_plateau_mask, dst);
+    }
+}
+
 bool findLeds(const Mat &src, vector<Point> &leds)
 {
     CV_Assert(src.type() == CV_8UC1 && "src.type() == CV_8UC1");
-    const int lpSize = 128;
+    const int lpSize = 256, ledCount = 4;
+    // преобразуем в log polar координаты
     LogPolar_Interp logPolar(src.rows, src.cols,
                               cv::Point(src.cols/2,src.rows/2),
                               lpSize,3.0,INTER_LINEAR,1, lpSize);
-    Mat lp = logPolar.to_cortical(src);
+    Mat lp = logPolar.to_cortical(src), lp_rgb;
+
+    // применяем оператор лапласа
+    // сначала сгладим
+    GaussianBlur( lp, lp, Size(3,3), 0, 0, BORDER_DEFAULT );
+    drawHist(lp,lp_rgb);
+    cv::imshow("log polar",lp_rgb);
+    int r = lpSize / 16;
+    double sigmaY = r / sqrt(2.);
+    double sigmaX = sigmaY * sqrt(2.);
+    lp.convertTo(lp,CV_32FC1);
+    Mat dog,dog_rgb;
+    _DoG(lp,dog,sigmaX,sigmaY);
+    dog.convertTo(dog,CV_8UC1);
+    drawHist(dog,dog_rgb);
+    cv::imshow("dog",dog_rgb);
+    // бинаризация
+    Mat otsu,otsu_rgb;
+    cv::threshold(dog, otsu, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
+    drawHist(otsu,otsu_rgb);
+    cv::imshow("otsu",otsu_rgb);
+    // kmean на 3 класса
+    Mat kmean,kmena_rgb, clasters;
+    kMeans(dog,kmean,clasters,4);
+    drawHist(kmean,kmena_rgb);
+    cv::imshow("kmean",kmena_rgb);
+
+
+
+
     return false;
 }
