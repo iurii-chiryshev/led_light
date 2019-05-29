@@ -368,3 +368,14 @@ void correctGamma(const Mat &src, Mat &dst, double gamma)
     }
     cv::LUT( src, lut, dst);
 }
+
+bool findLeds(const Mat &src, vector<Point> &leds)
+{
+    CV_Assert(src.type() == CV_8UC1 && "src.type() == CV_8UC1");
+    const int lpSize = 128;
+    LogPolar_Interp logPolar(src.rows, src.cols,
+                              cv::Point(src.cols/2,src.rows/2),
+                              lpSize,3.0,INTER_LINEAR,1, lpSize);
+    Mat lp = logPolar.to_cortical(src);
+    return false;
+}

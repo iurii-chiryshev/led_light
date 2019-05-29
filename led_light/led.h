@@ -140,3 +140,5 @@ void calculateFeatures(const Mat &src,
                        const vector<int> &hist_methods);
 
 
+bool findLeds(const Mat &src,vector<Point> &leds);
+

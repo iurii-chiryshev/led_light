@@ -19,8 +19,8 @@ using namespace std;
 using namespace cv;
 using namespace ccl;
 
-int main(int argc, char *argv[])
-{
+
+int main(int argc, char *argv[]){
     const string path = "D://images//";
     vector<pair<string,bool>> imgs = {
         {"good_0.png",true},
@@ -32,36 +32,66 @@ int main(int argc, char *argv[])
         {"bad.png",false},
     };
 
-    int size = 128;
-    Led target_led(size);
-    // любой из "good" берем за опорный, с которым будем сравнивать
-    int target_id = 2;
-    string target_name = path + imgs[target_id].first;
-    Mat target_gray = cv::imread(target_name,IMREAD_GRAYSCALE);
-    Mat target;
-    // считаем целевой вектор
-    target_led(target_gray,target);
-    double mean, std;
-    Led::estimate(target_gray,target,size,mean,std);
-    double threshold = mean - 2*std;
-    cout << "estimate mean = " << mean << ", std = " << std << ", threshold(mean - 2*std) = " << threshold << endl;
-
     for (int i = 0; i < imgs.size(); i++){
-        Led led(size);
         const string &name = imgs[i].first;
         string fullName = path + name;
         Mat gray = cv::imread(fullName,IMREAD_GRAYSCALE);
-        //correctGamma(gray,gray,2);
-        if(gray.empty()) continue;
-        Mat model;
-        led(gray,model);
-        double received = Led::compare(model,target);
-        cout << name << " compare result = " << received << endl;
-        cout << name << " expected: " <<  imgs[i].second << ", receive: " << (received >= threshold) <<endl;
+        vector<Point> leds;
+        findLeds(gray,leds);
+    }
+
+    cout << "Press enter to exit..";
+    while (!_kbhit())
+    {
+        cv::waitKey(10);
+    }
+    cv::destroyAllWindows();
+    return 0;
+}
+
+//int main(int argc, char *argv[])
+//{
+//    const string path = "D://images//";
+//    vector<pair<string,bool>> imgs = {
+//        {"good_0.png",true},
+//        {"good_1.png",true},
+//        {"good_2.png",true},
+//        {"good_3.png",true},
+//        {"good_4.png",true},
+//        {"good_5.png",true},
+//        {"bad.png",false},
+//    };
+
+//    int size = 128;
+//    Led target_led(size);
+//    // любой из "good" берем за опорный, с которым будем сравнивать
+//    int target_id = 2;
+//    string target_name = path + imgs[target_id].first;
+//    Mat target_gray = cv::imread(target_name,IMREAD_GRAYSCALE);
+//    Mat target;
+//    // считаем целевой вектор
+//    target_led(target_gray,target);
+//    double mean, std;
+//    Led::estimate(target_gray,target,size,mean,std);
+//    double threshold = mean - 2*std;
+//    cout << "estimate mean = " << mean << ", std = " << std << ", threshold(mean - 2*std) = " << threshold << endl;
+
+//    for (int i = 0; i < imgs.size(); i++){
+//        Led led(size);
+//        const string &name = imgs[i].first;
+//        string fullName = path + name;
+//        Mat gray = cv::imread(fullName,IMREAD_GRAYSCALE);
+//        //correctGamma(gray,gray,2);
+//        if(gray.empty()) continue;
+//        Mat model;
+//        led(gray,model);
+//        double received = Led::compare(model,target);
+//        cout << name << " compare result = " << received << endl;
+//        cout << name << " expected: " <<  imgs[i].second << ", receive: " << (received >= threshold) <<endl;
 
 
 
-        // рисуем картинки
+//        // рисуем картинки
 
 //        // original
 //        Mat rgb;
@@ -75,24 +105,24 @@ int main(int argc, char *argv[])
 //        drawKeypoints( lp, led.lpKeypoints(), lp,
 //                       Scalar(255,0,0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS );
 //        cv::imshow(name + " lp",lp);
-        // binary lp
-        cv::imshow(name + " lp bin",led.lpBin());
+//        // binary lp
+//        cv::imshow(name + " lp bin",led.lpBin());
 //        //выравненный log polar
 //        Mat lpShift;
 //        drawHist(led.lpShiftAligned(),lpShift);
 //        cv::imshow(name + " lp shift",lpShift);
-        // kmean log polar
-        Mat lpKmean;
-        drawHist(led.lpKmean(),lpKmean);
-        cv::imshow(name + " lp kmean",lpKmean);
+//        // kmean log polar
+//        Mat lpKmean;
+//        drawHist(led.lpKmean(),lpKmean);
+//        cv::imshow(name + " lp kmean",lpKmean);
 
-        cv::waitKey(1);
-    }
+//        cv::waitKey(1);
+//    }
 
-    while (!_kbhit())
-    {
-        cv::waitKey(10);
-    }
-    cv::destroyAllWindows();
-    return 0;
-}
+//    while (!_kbhit())
+//    {
+//        cv::waitKey(10);
+//    }
+//    cv::destroyAllWindows();
+//    return 0;
+//}
