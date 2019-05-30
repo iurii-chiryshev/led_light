@@ -7,7 +7,7 @@
 #include <opencv2/ml/ml.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/contrib/contrib.hpp>
-#include <ccl.h>
+
 #include <vector>
 #include <string>
 #include <algorithm>

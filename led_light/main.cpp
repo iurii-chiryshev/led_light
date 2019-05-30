@@ -23,13 +23,20 @@ using namespace ccl;
 int main(int argc, char *argv[]){
     const string path = "D://images//";
     vector<pair<string,bool>> imgs = {
-//        {"good_0.png",true},
-//        {"good_1.png",true},
+        {"good_0.png",true},
+        {"good_1.png",true},
         {"good_2.png",true},
-//        {"good_3.png",true},
-//        {"good_4.png",true},
-//        {"good_5.png",true},
-//        {"bad.png",false},
+        {"good_3.png",true},
+        {"good_4.png",true},
+        {"good_5.png",true},
+       {"bad.png",false},
+        {"10_50_30_1030.bmp",false},
+        {"12_36_57_1057.bmp",false},
+        {"17_28_22_1022.bmp",false},
+        {"Pl_18_16_52_718.bmp",false},
+        {"Pl_18_16_52_562.bmp",false},
+        {"Pl_18_16_52_718.bmp",false},
+        {"Pl_18_16_52_640.bmp",false},
     };
 
     for (int i = 0; i < imgs.size(); i++){
@@ -37,7 +44,9 @@ int main(int argc, char *argv[]){
         string fullName = path + name;
         Mat gray = cv::imread(fullName,IMREAD_GRAYSCALE);
         vector<Point> leds;
-        findLeds(gray,leds);
+        bool find = findLeds(gray,leds);
+        cout << name << ", detected status = " << find << ", expected = " << imgs[i].second << endl;
+        waitKey(1000);
     }
 
     cout << "Press enter to exit..";

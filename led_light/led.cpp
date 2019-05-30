@@ -1,9 +1,11 @@
 #include "led.h"
 #define _USE_MATH_DEFINES // for C++
 #include <math.h>
+#include <ccl.h>
 
 using namespace std;
 using namespace cv;
+using namespace ccl;
 
 Led::Led(int lpSize, int clusters, int ledClusters,int ledCount):
     m_lpSize(lpSize), m_numClusters(clusters), m_ledClusters(ledClusters), m_ledCount(ledCount)
@@ -382,7 +384,7 @@ static cv::Mat _getGaussianKernel(double sigmaX, double sigmaY,int ktype = CV_64
     int ksizeY = _getGaussKsize(sigmaY);
     cv::Mat gaussX = cv::getGaussianKernel(ksizeX, sigmaX, ktype);
     cv::Mat gaussY = cv::getGaussianKernel(ksizeY, sigmaY, ktype);
-    cv::Mat k = gaussX * gaussY.t();
+    cv::Mat k = gaussY * gaussX.t() ;
     cv::Scalar sum = cv::sum(k);
     return k;
 
@@ -396,9 +398,16 @@ static void _DoG(const Mat& src, Mat& dst,double sigmaX,double sigmaY){
     Mat dog = k1 - k2;
     double minVal,maxVal;
     dog.convertTo(dog,dog.type(),-sigmaX*sigmaY / delta);
+    cv::minMaxLoc(dog,&minVal,&maxVal);
+    Mat dog_gray;
+    dog.convertTo(dog_gray,dog.type(),1./(maxVal-minVal),-minVal/(maxVal-minVal));
+    cv::minMaxLoc(dog_gray,&minVal,&maxVal);
+    dog_gray.convertTo(dog_gray,CV_8UC1,255);
+    imshow("dog kernel", dog_gray);
+    //cout << "log kernel, maxVal = " << maxVal << " minVal = " << minVal << endl;
     cv::filter2D(src,dst,-1,dog);
     cv::minMaxLoc(dst,&minVal,&maxVal);
-    cout << "maxVal = " << maxVal / sqrt(sigmaX*sigmaY) << endl;
+    //cout << "maxVal = " << maxVal << endl;
     dst.convertTo(dst,dst.type(),1./(maxVal-minVal),-minVal/(maxVal-minVal));
     dst.convertTo(dst,dst.type(),255);
     cv::minMaxLoc(dst,&minVal,&maxVal);
@@ -410,7 +419,7 @@ static void _nonMaximaSuppression(const cv::Mat& src, cv::Mat& dst, bool removeP
     //cv::imshow("mask1",dst);
     cv::compare(src,dst,dst, cv::CMP_GE);
 
-    // удираем плато -> морф. оконтуривание
+    // убираем плато -> морф. оконтуривание
     if (removePlateaus) {
         cv::Mat non_plateau_mask;
         cv::erode(src, non_plateau_mask, cv::Mat());
@@ -419,10 +428,53 @@ static void _nonMaximaSuppression(const cv::Mat& src, cv::Mat& dst, bool removeP
     }
 }
 
+static void _findBestMaximums(const Mat &src,vector<Point> &points,int maxPoints = 4, int radius = 1){
+    CV_Assert(radius > 0 && "radius > 0");
+    points.clear();
+    Mat mat;
+    src.convertTo(mat,src.type());
+    for(int i = 0; i < maxPoints;i++){
+        double minVal, maxVal;
+        Point minId, maxId;
+        cv::minMaxLoc(mat,&minVal,&maxVal,&minId,&maxId);
+        // ракрашиваем в 0 участок вокруг области с радусом
+        Point tl(MAX(0,maxId.x - radius),
+                 MAX(0,maxId.y - radius));
+        int size = radius * 2 + 1;
+        Rect rect(tl.x,tl.y,
+                  MIN(mat.cols - tl.x,radius * 2 + 1),
+                  MIN(mat.rows - tl.y,radius * 2 + 1));
+        mat(rect).setTo(Scalar::all(0));
+        points.push_back(maxId);
+        //imshow(std::to_string(i),mat);
+        //waitKey(1);
+    }
+}
+
+static bool _isLedPoint(const vector<Point> &points,Size area,int numPoint){
+    if (points.size() != numPoint) return false;
+    // среднее по X
+    int meanX = 0; for (auto p : points)  meanX += p.x;
+    meanX /= numPoint;
+    // нормируем
+    vector<Point> norms;
+    const int period = area.height / numPoint;
+    bool result = true;
+    int expected_sum = 0, received_sum = 0;
+    for(int i = 0 ; i < points.size(); i++){
+        Point n(points[i].x - meanX, points[i].y % period - period / 2);
+        norms.push_back(n);
+        result = result && sqrt(n.ddot(n)) < period / 2;
+        expected_sum += i;
+        received_sum += points[i].y / period;
+    }
+    return result && expected_sum == received_sum;
+}
+
 bool findLeds(const Mat &src, vector<Point> &leds)
 {
     CV_Assert(src.type() == CV_8UC1 && "src.type() == CV_8UC1");
-    const int lpSize = 256, ledCount = 4;
+    const int lpSize = 128, ledCount = 4;
     // преобразуем в log polar координаты
     LogPolar_Interp logPolar(src.rows, src.cols,
                               cv::Point(src.cols/2,src.rows/2),
@@ -436,7 +488,7 @@ bool findLeds(const Mat &src, vector<Point> &leds)
     cv::imshow("log polar",lp_rgb);
     int r = lpSize / 16;
     double sigmaY = r / sqrt(2.);
-    double sigmaX = sigmaY * sqrt(2.);
+    double sigmaX = sigmaY; // * sqrt(2.);
     lp.convertTo(lp,CV_32FC1);
     Mat dog,dog_rgb;
     _DoG(lp,dog,sigmaX,sigmaY);
@@ -450,12 +502,13 @@ bool findLeds(const Mat &src, vector<Point> &leds)
     cv::imshow("otsu",otsu_rgb);
     // kmean на 3 класса
     Mat kmean,kmena_rgb, clasters;
-    kMeans(dog,kmean,clasters,4);
+    kMeans(dog,kmean,clasters,2);
     drawHist(kmean,kmena_rgb);
     cv::imshow("kmean",kmena_rgb);
 
-
-
-
-    return false;
+    //
+    vector<Point> points;
+    _findBestMaximums(dog,points,ledCount,lpSize / 8);
+    bool res = _isLedPoint(points,Size(dog.cols,dog.rows),ledCount);
+    return res;
 }
