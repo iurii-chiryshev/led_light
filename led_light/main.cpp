@@ -24,19 +24,19 @@ int main(int argc, char *argv[]){
     const string path = "D://images//";
     vector<pair<string,bool>> imgs = {
         {"good_0.png",true},
-        {"good_1.png",true},
-        {"good_2.png",true},
-        {"good_3.png",true},
-        {"good_4.png",true},
-        {"good_5.png",true},
-       {"bad.png",false},
-        {"10_50_30_1030.bmp",false},
-        {"12_36_57_1057.bmp",false},
-        {"17_28_22_1022.bmp",false},
-        {"Pl_18_16_52_718.bmp",false},
-        {"Pl_18_16_52_562.bmp",false},
-        {"Pl_18_16_52_718.bmp",false},
-        {"Pl_18_16_52_640.bmp",false},
+//        {"good_1.png",true},
+//        {"good_2.png",true},
+//        {"good_3.png",true},
+//        {"good_4.png",true},
+//        {"good_5.png",true},
+//        {"bad.png",false},
+//        {"10_50_30_1030.bmp",false},
+//        {"12_36_57_1057.bmp",false},
+//        {"17_28_22_1022.bmp",false},
+//        {"Pl_18_16_52_718.bmp",false},
+//        {"Pl_18_16_52_562.bmp",false},
+//        {"Pl_18_16_52_718.bmp",false},
+//        {"Pl_18_16_52_640.bmp",false},
     };
 
     for (int i = 0; i < imgs.size(); i++){
@@ -46,7 +46,11 @@ int main(int argc, char *argv[]){
         vector<Point> leds;
         bool find = findLeds(gray,leds);
         cout << name << ", detected status = " << find << ", expected = " << imgs[i].second << endl;
-        waitKey(1000);
+        Mat rgb;
+        drawHist(gray,rgb);
+        for(auto p : leds) cv::circle(rgb,p,2,Scalar(0,255,0),2);
+        cv::imshow(name,rgb);
+        waitKey(2000);
     }
 
     cout << "Press enter to exit..";

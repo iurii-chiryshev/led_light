@@ -7,6 +7,57 @@ using namespace std;
 using namespace cv;
 using namespace ccl;
 
+/**
+ * @brief The LogPolar_Interp_Ext class
+ * Расширение log-polar преобразования. Уж очень хитро он считает.
+ * И обратное преобразование по классическим формулам не работает.
+ */
+class LogPolar_Interp_Ext: public LogPolar_Interp{
+
+public:
+    LogPolar_Interp_Ext(): LogPolar_Interp() {}
+    LogPolar_Interp_Ext(int w,
+                        int h,
+                        Point2i center,
+                        int R=70,
+                        double ro0=3.0,
+                        int interp=INTER_LINEAR,
+                        int full=1,
+                        int S=117,
+                        int sp=1): LogPolar_Interp(w,h,center,R,ro0,interp,full,S,sp) {}
+    template <typename T>
+    Point_<T> toCart(Point point)
+    {
+        const int u = point.x, v = point.y;
+        return Point_<T>(cv::saturate_cast<T>(Csri.at<float>(v,u) - left),
+                    cv::saturate_cast<T>(Rsri.at<float>(v,u) - top));
+    }
+};
+
+template <typename T>
+static Point_<T> _lpToCart(T ro, T phi, Size cartSize, Size polarSize)
+{
+    //ro = polarSize.width;
+    //double rectRad = min(cartSize.height / 2,cartSize.width / 2);
+    //double maxRadius = sqrt(2 * rectRad * rectRad);
+    double maxRadius = sqrt((cartSize.height / 2) * (cartSize.height / 2) + (cartSize.width / 2) * (cartSize.width / 2));
+    double M = polarSize.width / log(maxRadius);
+    double Ky = polarSize.height / 360.;
+    double r = exp( ro / M );
+    //cout << r << endl;
+    double angle = phi / Ky;
+    double Krad = M_PI / 180;
+    return Point_<T>(cv::saturate_cast<T>(r * cos(angle * Krad) + cartSize.width / 2),
+                     cv::saturate_cast<T>(r * sin(angle * Krad) + cartSize.height / 2));
+
+}
+template <typename T>
+static Point_<T> _lpToCart(Point_<T> point, Size cartSize, Size polarSize)
+{
+    return _lpToCart<T>(point.x,point.y,cartSize,polarSize);
+}
+
+
 Led::Led(int lpSize, int clusters, int ledClusters,int ledCount):
     m_lpSize(lpSize), m_numClusters(clusters), m_ledClusters(ledClusters), m_ledCount(ledCount)
 {
@@ -201,18 +252,7 @@ void Led::_detectLogPolarBlobs(const Mat &src, float thresh, std::vector<KeyPoin
 
 Point2d Led::_logPolarToCart(double ro, double phi, Size cartSize, Size polarSize)
 {
-    //ro = polarSize.width;
-    //double rectRad = min(cartSize.height / 2,cartSize.width / 2);
-    //double maxRadius = sqrt(2 * rectRad * rectRad);
-    double maxRadius = sqrt((cartSize.height / 2) * (cartSize.height / 2) + (cartSize.width / 2) * (cartSize.width / 2));
-    double M = polarSize.width / log(maxRadius);
-    double Ky = polarSize.height / 360.;
-    double r = exp(ro / M);
-    //cout << r << endl;
-    double angle = phi / Ky;
-    double Krad = M_PI / 180;
-    return Point2d(r * cos(angle * Krad), r * sin(angle * Krad));
-
+    return _lpToCart<double>(ro,phi,cartSize,polarSize);
 }
 
 void Led::_shiftAlign(const Mat &src, Mat &dst, int shiftX, int shiftY)
@@ -474,9 +514,9 @@ static bool _isLedPoint(const vector<Point> &points,Size area,int numPoint){
 bool findLeds(const Mat &src, vector<Point> &leds)
 {
     CV_Assert(src.type() == CV_8UC1 && "src.type() == CV_8UC1");
-    const int lpSize = 128, ledCount = 4;
+    const int lpSize = 256, ledCount = 4;
     // преобразуем в log polar координаты
-    LogPolar_Interp logPolar(src.rows, src.cols,
+    LogPolar_Interp_Ext logPolar(src.rows, src.cols,
                               cv::Point(src.cols/2,src.rows/2),
                               lpSize,3.0,INTER_LINEAR,1, lpSize);
     Mat lp = logPolar.to_cortical(src), lp_rgb;
@@ -509,6 +549,14 @@ bool findLeds(const Mat &src, vector<Point> &leds)
     //
     vector<Point> points;
     _findBestMaximums(dog,points,ledCount,lpSize / 8);
+    Mat points_rgb;
+    drawHist(dog,points_rgb);
+    for (int i = 0; i < points.size(); i++){
+        cv::circle(points_rgb,points[i],1,Scalar(0,255,0),2);
+    }
+    cv::imshow("dog max",points_rgb);
     bool res = _isLedPoint(points,Size(dog.cols,dog.rows),ledCount);
+    leds.clear();
+    for(auto p : points) leds.push_back(logPolar.toCart<int>(p));
     return res;
 }
